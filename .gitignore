@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.js.map
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Vite cache
+.vite/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Tarballs (like the one I created)
+*.tar.gz
+*.tgz
+
+# Optional: If you don't want to track lock files (most projects DO track them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
