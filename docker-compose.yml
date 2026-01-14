@@ -1,0 +1,86 @@
+# =============================================================================
+# Churro Chat - Docker Compose Configuration
+# =============================================================================
+# 
+# Usage:
+#   Development (with hot reload):
+#     docker compose up dev
+#
+#   Production (static build):
+#     docker compose up prod
+#
+#   Build and run in background:
+#     docker compose up -d dev
+#
+#   Stop all services:
+#     docker compose down
+#
+#   Rebuild after dependency changes:
+#     docker compose build --no-cache dev
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Development service - with hot reload and volume mounting
+  # ---------------------------------------------------------------------------
+  dev:
+    build:
+      context: .
+      target: development
+    container_name: churro-chat-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      # Preserve node_modules from container (don't override with host)
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    # Restart on crash during development
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Production service - optimized static build
+  # ---------------------------------------------------------------------------
+  prod:
+    build:
+      context: .
+      target: production
+    container_name: churro-chat-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    # Always restart in production
+    restart: always
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # Test service - for running tests in CI/CD
+  # ---------------------------------------------------------------------------
+  test:
+    build:
+      context: .
+      target: development
+    container_name: churro-chat-test
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+      - CI=true
+    # Override command to run tests (when you add them)
+    command: ["npm", "test"]
+    profiles:
+      - test  # Only runs when explicitly requested: docker compose --profile test up test
