@@ -27,6 +27,7 @@ export function ChatRoom() {
     updateNickname,
     ejectUser,
     banUser,
+    transferOwner,
   } = useSocket();
 
   // Check if room exists before trying to join
@@ -150,6 +151,7 @@ export function ChatRoom() {
           ownerSessionId={ownerSessionId}
           onEject={ejectUser}
           onBan={banUser}
+          onTransferOwner={transferOwner}
         />
         
         <MessageInput 

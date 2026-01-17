@@ -25,6 +25,7 @@ interface UseSocketReturn {
   updateNickname: (nickname: string) => Promise<{ success: boolean; error?: string }>;
   ejectUser: (targetSessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
   banUser: (targetSessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
+  transferOwner: (targetSessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -93,6 +94,30 @@ export function useSocket(): UseSocketReturn {
 
     socket.on('owner:identified', (data) => {
       setOwnerSessionId(data.ownerSessionId);
+    });
+
+    socket.on('owner:transferred', (data) => {
+      setOwnerSessionId(data.ownerSessionId);
+      // If current user is the new owner, store the ownerToken
+      setSession((currentSession) => {
+        if (currentSession?.sessionId === data.ownerSessionId && data.ownerToken) {
+          // Store ownerToken for the new owner
+          const roomId = currentSession.roomId;
+          if (roomId) {
+            localStorage.setItem(`ownerToken:${roomId}`, data.ownerToken);
+            setIsOwner(true);
+          }
+        } else if (currentSession?.sessionId === data.previousOwnerSessionId) {
+          // Previous owner loses ownership
+          setIsOwner(false);
+          const roomId = currentSession.roomId;
+          if (roomId) {
+            // Optionally remove the token from previous owner's localStorage
+            // Or keep it for reference - leaving it for now
+          }
+        }
+        return currentSession;
+      });
     });
 
     socket.on('user:ejected', (data) => {
@@ -219,6 +244,20 @@ export function useSocket(): UseSocketReturn {
     });
   }, []);
 
+  const transferOwner = useCallback(async (targetSessionId: string, ownerToken: string): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) {
+        resolve({ success: false, error: 'Not connected' });
+        return;
+      }
+
+      socket.emit('moderation:transferOwner', { targetSessionId, ownerToken }, (response) => {
+        resolve(response);
+      });
+    });
+  }, []);
+
   return {
     isConnected,
     isJoined,
@@ -233,5 +272,6 @@ export function useSocket(): UseSocketReturn {
     updateNickname,
     ejectUser,
     banUser,
+    transferOwner,
   };
 }

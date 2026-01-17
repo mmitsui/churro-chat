@@ -12,6 +12,7 @@ interface MessageListProps {
   ownerSessionId: string | null;
   onEject: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
   onBan: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
+  onTransferOwner: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function MessageList({ 
@@ -21,7 +22,8 @@ export function MessageList({
   ownerToken,
   ownerSessionId,
   onEject,
-  onBan 
+  onBan,
+  onTransferOwner
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -44,6 +46,14 @@ export function MessageList({
     const result = await onBan(sessionId, ownerToken);
     if (!result.success && result.error) {
       alert(`Failed to ban user: ${result.error}`);
+    }
+  };
+
+  const handleTransferOwner = async (sessionId: string) => {
+    if (!ownerToken) return;
+    const result = await onTransferOwner(sessionId, ownerToken);
+    if (!result.success && result.error) {
+      alert(`Failed to transfer ownership: ${result.error}`);
     }
   };
 
@@ -97,8 +107,10 @@ export function MessageList({
                   nickname={message.nickname}
                   isOwnMessage={isOwnMessage}
                   isOwner={isOwner}
+                  isOwnerMessage={isOwnerMessage}
                   onEject={handleEject}
                   onBan={handleBan}
+                  onTransferOwner={handleTransferOwner}
                 />
               </div>
             </div>

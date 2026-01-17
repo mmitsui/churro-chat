@@ -334,6 +334,82 @@ export function setupSocketHandlers(
       }
     });
 
+    // Handle transfer owner (owner only)
+    socket.on('moderation:transferOwner', async (data, callback) => {
+      try {
+        const { targetSessionId, ownerToken } = data;
+        const { roomId, sessionId: currentSessionId } = socket.data;
+
+        // Validate user is in a room
+        if (!roomId) {
+          callback({ success: false, error: 'Not in a room' });
+          return;
+        }
+
+        // Verify owner token
+        if (!roomService.verifyOwnerToken(roomId, ownerToken)) {
+          callback({ success: false, error: 'Unauthorized: Invalid owner token' });
+          return;
+        }
+
+        // Verify current user is the owner
+        if (!roomService.isOwnerSession(roomId, currentSessionId)) {
+          callback({ success: false, error: 'Only the current owner can transfer ownership' });
+          return;
+        }
+
+        // Get target session to get their nickname
+        const targetSession = roomService.getSession(roomId, targetSessionId);
+        if (!targetSession) {
+          callback({ success: false, error: 'User not found in room' });
+          return;
+        }
+
+        // Cannot transfer to yourself
+        if (targetSessionId === currentSessionId) {
+          callback({ success: false, error: 'You are already the owner' });
+          return;
+        }
+
+        // Transfer ownership
+        const transferred = roomService.transferOwner(roomId, targetSessionId, ownerToken);
+        if (!transferred) {
+          callback({ success: false, error: 'Failed to transfer ownership' });
+          return;
+        }
+
+        // Get current owner session for notification
+        const currentOwnerSession = roomService.getSession(roomId, currentSessionId);
+        const room = roomService.getRoom(roomId);
+
+        // Broadcast to all users that ownership has been transferred
+        // Send ownerToken only to the new owner
+        const sockets = await io.in(roomId).fetchSockets();
+        for (const s of sockets) {
+          if (s.data.sessionId === targetSessionId) {
+            // Send ownerToken to new owner only
+            s.emit('owner:transferred', {
+              ownerSessionId: targetSessionId,
+              previousOwnerSessionId: currentSessionId,
+              ownerToken: room?.ownerToken
+            });
+          } else {
+            // Send without ownerToken to others
+            s.emit('owner:transferred', {
+              ownerSessionId: targetSessionId,
+              previousOwnerSessionId: currentSessionId
+            });
+          }
+        }
+
+        callback({ success: true });
+        console.log(`Ownership transferred from ${currentOwnerSession?.nickname} to ${targetSession.nickname} in room ${roomId}`);
+      } catch (error) {
+        console.error('Error transferring ownership:', error);
+        callback({ success: false, error: 'Failed to transfer ownership' });
+      }
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const { sessionId, roomId, nickname } = socket.data;

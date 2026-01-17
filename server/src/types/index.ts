@@ -71,6 +71,7 @@ export interface ServerToClientEvents {
   'user:left': (user: { nickname: string }) => void;
   'user:updated': (user: { sessionId: string; nickname: string }) => void;
   'owner:identified': (data: { ownerSessionId: string }) => void;
+  'owner:transferred': (data: { ownerSessionId: string; previousOwnerSessionId: string; ownerToken?: string }) => void;
   'user:ejected': (data: { sessionId: string; reason?: string }) => void;
   'user:banned': (data: { sessionId: string; reason?: string }) => void;
   'room:expired': () => void;
@@ -83,6 +84,7 @@ export interface ClientToServerEvents {
   'user:updateNickname': (data: { nickname: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'moderation:eject': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'moderation:ban': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'moderation:transferOwner': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
 }
 
 export interface InterServerEvents {

@@ -267,6 +267,25 @@ export function isOwnerSession(roomId: string, sessionId: string): boolean {
 }
 
 /**
+ * Transfer ownership to another user
+ */
+export function transferOwner(roomId: string, newOwnerSessionId: string, ownerToken: string): boolean {
+  const room = getRoom(roomId);
+  if (!room) return false;
+
+  // Verify owner token
+  if (room.ownerToken !== ownerToken) return false;
+
+  // Verify new owner session exists in room
+  const newOwnerSession = getSession(roomId, newOwnerSessionId);
+  if (!newOwnerSession) return false;
+
+  // Transfer ownership
+  roomOwners.set(roomId, newOwnerSessionId);
+  return true;
+}
+
+/**
  * Eject a user from a room (remove session immediately)
  */
 export function ejectUser(roomId: string, targetSessionId: string): UserSession | null {

@@ -235,4 +235,49 @@ describe('Moderation Functionality', () => {
       expect(roomService.isUserBanned(roomId, user1Session.sessionId)).toBe(true);
     });
   });
+
+  describe('Owner Transfer', () => {
+    beforeEach(() => {
+      roomService.addSession(roomId, user1Session);
+      roomService.addSession(roomId, user2Session);
+    });
+
+    it('should transfer ownership to another user', () => {
+      // Set initial owner
+      roomService.setOwnerSession(roomId, user1Session.sessionId);
+      expect(roomService.getOwnerSession(roomId)).toBe(user1Session.sessionId);
+      
+      // Transfer ownership
+      const transferred = roomService.transferOwner(roomId, user2Session.sessionId, ownerToken);
+      expect(transferred).toBe(true);
+      expect(roomService.getOwnerSession(roomId)).toBe(user2Session.sessionId);
+    });
+
+    it('should reject transfer with invalid owner token', () => {
+      roomService.setOwnerSession(roomId, user1Session.sessionId);
+      
+      const transferred = roomService.transferOwner(roomId, user2Session.sessionId, 'invalid-token');
+      expect(transferred).toBe(false);
+      expect(roomService.getOwnerSession(roomId)).toBe(user1Session.sessionId); // Should remain unchanged
+    });
+
+    it('should reject transfer to non-existent user', () => {
+      roomService.setOwnerSession(roomId, user1Session.sessionId);
+      
+      const transferred = roomService.transferOwner(roomId, 'nonexistent-session', ownerToken);
+      expect(transferred).toBe(false);
+      expect(roomService.getOwnerSession(roomId)).toBe(user1Session.sessionId);
+    });
+
+    it('should verify owner session correctly after transfer', () => {
+      roomService.setOwnerSession(roomId, user1Session.sessionId);
+      expect(roomService.isOwnerSession(roomId, user1Session.sessionId)).toBe(true);
+      expect(roomService.isOwnerSession(roomId, user2Session.sessionId)).toBe(false);
+      
+      roomService.transferOwner(roomId, user2Session.sessionId, ownerToken);
+      
+      expect(roomService.isOwnerSession(roomId, user1Session.sessionId)).toBe(false);
+      expect(roomService.isOwnerSession(roomId, user2Session.sessionId)).toBe(true);
+    });
+  });
 });
