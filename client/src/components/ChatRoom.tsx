@@ -20,9 +20,12 @@ export function ChatRoom() {
     session,
     messages,
     error,
+    isOwner,
     joinRoom,
     sendMessage,
     updateNickname,
+    ejectUser,
+    banUser,
   } = useSocket();
 
   // Check if room exists before trying to join
@@ -132,7 +135,8 @@ export function ChatRoom() {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <RoomHeader 
         room={room} 
-        session={session} 
+        session={session}
+        isOwner={isOwner}
         onUpdateNickname={updateNickname}
       />
       
@@ -140,6 +144,10 @@ export function ChatRoom() {
         <MessageList 
           messages={messages} 
           currentSessionId={session.sessionId}
+          isOwner={isOwner}
+          ownerToken={roomId ? localStorage.getItem(`ownerToken:${roomId}`) : null}
+          onEject={ejectUser}
+          onBan={banUser}
         />
         
         <MessageInput 

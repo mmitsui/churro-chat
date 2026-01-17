@@ -18,9 +18,12 @@ interface UseSocketReturn {
   session: UserSession | null;
   messages: Message[];
   error: string | null;
+  isOwner: boolean;
   joinRoom: (roomId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<{ success: boolean; error?: string }>;
   updateNickname: (nickname: string) => Promise<{ success: boolean; error?: string }>;
+  ejectUser: (targetSessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
+  banUser: (targetSessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -31,6 +34,7 @@ export function useSocket(): UseSocketReturn {
   const [session, setSession] = useState<UserSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     // Create socket connection
@@ -76,7 +80,33 @@ export function useSocket(): UseSocketReturn {
 
     socket.on('user:updated', (user) => {
       // Update nickname in existing messages if needed
-      console.log(`User updated: ${user.nickname}`);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.sessionId === user.sessionId
+            ? { ...msg, nickname: user.nickname }
+            : msg
+        )
+      );
+    });
+
+    socket.on('user:ejected', (data) => {
+      setSession((currentSession) => {
+        if (data.sessionId === currentSession?.sessionId) {
+          setError('You have been ejected from this room');
+          setIsJoined(false);
+        }
+        return currentSession;
+      });
+    });
+
+    socket.on('user:banned', (data) => {
+      setSession((currentSession) => {
+        if (data.sessionId === currentSession?.sessionId) {
+          setError('You have been banned from this room');
+          setIsJoined(false);
+        }
+        return currentSession;
+      });
     });
 
     socket.on('room:expired', () => {
@@ -101,6 +131,10 @@ export function useSocket(): UseSocketReturn {
         reject(new Error('Not connected to server'));
         return;
       }
+
+      // Check if user is owner
+      const ownerToken = localStorage.getItem(`ownerToken:${roomId}`);
+      setIsOwner(!!ownerToken);
 
       socket.emit('room:join', { roomId }, (response) => {
         if ('error' in response) {
@@ -150,6 +184,34 @@ export function useSocket(): UseSocketReturn {
     });
   }, []);
 
+  const ejectUser = useCallback(async (targetSessionId: string, ownerToken: string): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) {
+        resolve({ success: false, error: 'Not connected' });
+        return;
+      }
+
+      socket.emit('moderation:eject', { targetSessionId, ownerToken }, (response) => {
+        resolve(response);
+      });
+    });
+  }, []);
+
+  const banUser = useCallback(async (targetSessionId: string, ownerToken: string): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) {
+        resolve({ success: false, error: 'Not connected' });
+        return;
+      }
+
+      socket.emit('moderation:ban', { targetSessionId, ownerToken }, (response) => {
+        resolve(response);
+      });
+    });
+  }, []);
+
   return {
     isConnected,
     isJoined,
@@ -157,8 +219,11 @@ export function useSocket(): UseSocketReturn {
     session,
     messages,
     error,
+    isOwner,
     joinRoom,
     sendMessage,
     updateNickname,
+    ejectUser,
+    banUser,
   };
 }

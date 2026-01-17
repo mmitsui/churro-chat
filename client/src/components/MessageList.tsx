@@ -1,13 +1,25 @@
 import { useEffect, useRef } from 'react';
 import { Message } from '../types';
 import { parseMessageContent, formatTimestamp } from '../utils/format';
+import { ModerationMenu } from './ModerationMenu';
 
 interface MessageListProps {
   messages: Message[];
   currentSessionId: string | null;
+  isOwner: boolean;
+  ownerToken: string | null;
+  onEject: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
+  onBan: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function MessageList({ messages, currentSessionId }: MessageListProps) {
+export function MessageList({ 
+  messages, 
+  currentSessionId, 
+  isOwner, 
+  ownerToken,
+  onEject,
+  onBan 
+}: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -15,6 +27,22 @@ export function MessageList({ messages, currentSessionId }: MessageListProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleEject = async (sessionId: string) => {
+    if (!ownerToken) return;
+    const result = await onEject(sessionId, ownerToken);
+    if (!result.success && result.error) {
+      alert(`Failed to eject user: ${result.error}`);
+    }
+  };
+
+  const handleBan = async (sessionId: string) => {
+    if (!ownerToken) return;
+    const result = await onBan(sessionId, ownerToken);
+    if (!result.success && result.error) {
+      alert(`Failed to ban user: ${result.error}`);
+    }
+  };
 
   if (messages.length === 0) {
     return (
@@ -35,7 +63,7 @@ export function MessageList({ messages, currentSessionId }: MessageListProps) {
         return (
           <div 
             key={message.id}
-            className="message-enter"
+            className="message-enter group hover:bg-gray-50 rounded-lg p-2 -mx-2"
           >
             <div className="flex items-baseline gap-2">
               <span 
@@ -50,6 +78,16 @@ export function MessageList({ messages, currentSessionId }: MessageListProps) {
               {isOwnMessage && (
                 <span className="text-xs text-gray-400">(you)</span>
               )}
+              <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                <ModerationMenu
+                  sessionId={message.sessionId}
+                  nickname={message.nickname}
+                  isOwnMessage={isOwnMessage}
+                  isOwner={isOwner}
+                  onEject={handleEject}
+                  onBan={handleBan}
+                />
+              </div>
             </div>
             <div 
               className="message-content text-gray-800 mt-0.5 break-words"

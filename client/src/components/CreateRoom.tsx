@@ -22,6 +22,10 @@ export function CreateRoom() {
 
     try {
       const response = await createRoom(selectedTTL);
+      // Store ownerToken in localStorage for this room
+      if (response.ownerToken) {
+        localStorage.setItem(`ownerToken:${response.roomId}`, response.ownerToken);
+      }
       navigate(`/room/${response.roomId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room');

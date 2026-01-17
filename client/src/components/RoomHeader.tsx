@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Clock, Copy, Check, Edit2 } from 'lucide-react';
+import { Clock, Copy, Check, Edit2, Shield } from 'lucide-react';
 import { Room, UserSession } from '../types';
 import { formatTimeRemaining } from '../utils/format';
 
 interface RoomHeaderProps {
   room: Room;
   session: UserSession;
+  isOwner: boolean;
   onUpdateNickname: (nickname: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function RoomHeader({ room, session, onUpdateNickname }: RoomHeaderProps) {
+export function RoomHeader({ room, session, isOwner, onUpdateNickname }: RoomHeaderProps) {
   const [timeRemaining, setTimeRemaining] = useState(formatTimeRemaining(room.expiresAt));
   const [copied, setCopied] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
@@ -72,6 +73,12 @@ export function RoomHeader({ room, session, onUpdateNickname }: RoomHeaderProps)
           <span className="text-blue-200 text-sm hidden sm:inline">
             Room: {room.id}
           </span>
+          {isOwner && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-600 rounded text-xs font-medium">
+              <Shield className="w-3 h-3" />
+              Owner
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-4 text-sm">
