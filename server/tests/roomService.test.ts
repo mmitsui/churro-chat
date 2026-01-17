@@ -42,6 +42,21 @@ describe('Room Service', () => {
       }
       expect(ids.size).toBe(100);
     });
+
+    it('should create a room with ownerToken', () => {
+      const room = roomService.createRoom(12);
+      expect(room.ownerToken).toBeDefined();
+      expect(room.ownerToken.length).toBe(32);
+    });
+
+    it('should generate unique owner tokens', () => {
+      const tokens = new Set<string>();
+      for (let i = 0; i < 100; i++) {
+        const room = roomService.createRoom(12);
+        tokens.add(room.ownerToken);
+      }
+      expect(tokens.size).toBe(100);
+    });
   });
 
   describe('getRoom', () => {
@@ -250,6 +265,172 @@ describe('Room Service', () => {
       const cleaned = roomService.cleanupExpiredRooms();
       expect(cleaned).toBe(1);
       expect(roomService.getAllRooms()).toHaveLength(0);
+    });
+  });
+
+  describe('Owner Token Management', () => {
+    let roomId: string;
+    let ownerToken: string;
+
+    beforeEach(() => {
+      const room = roomService.createRoom(12);
+      roomId = room.id;
+      ownerToken = room.ownerToken;
+    });
+
+    it('should verify valid owner token', () => {
+      expect(roomService.verifyOwnerToken(roomId, ownerToken)).toBe(true);
+    });
+
+    it('should reject invalid owner token', () => {
+      expect(roomService.verifyOwnerToken(roomId, 'invalid-token')).toBe(false);
+    });
+
+    it('should reject owner token for wrong room', () => {
+      const room2 = roomService.createRoom(12);
+      expect(roomService.verifyOwnerToken(roomId, room2.ownerToken)).toBe(false);
+    });
+
+    it('should get owner token for room', () => {
+      const token = roomService.getOwnerToken(roomId);
+      expect(token).toBe(ownerToken);
+    });
+
+    it('should return null for non-existent room', () => {
+      const token = roomService.getOwnerToken('nonexistent');
+      expect(token).toBeNull();
+    });
+  });
+
+  describe('User Ejection', () => {
+    let roomId: string;
+    let session: UserSession;
+
+    beforeEach(() => {
+      const room = roomService.createRoom(12);
+      roomId = room.id;
+      session = {
+        sessionId: 'test-session-1',
+        roomId,
+        nickname: 'TestUser',
+        color: '#FF0000',
+        joinedAt: Date.now()
+      };
+      roomService.addSession(roomId, session);
+    });
+
+    it('should eject user from room', () => {
+      expect(roomService.getParticipantCount(roomId)).toBe(1);
+      const ejected = roomService.ejectUser(roomId, session.sessionId);
+      expect(ejected).toBeDefined();
+      expect(ejected!.sessionId).toBe(session.sessionId);
+      expect(roomService.getParticipantCount(roomId)).toBe(0);
+    });
+
+    it('should return null when ejecting non-existent user', () => {
+      const ejected = roomService.ejectUser(roomId, 'nonexistent-session');
+      expect(ejected).toBeNull();
+    });
+
+    it('should return null when ejecting from non-existent room', () => {
+      const ejected = roomService.ejectUser('nonexistent', session.sessionId);
+      expect(ejected).toBeNull();
+    });
+  });
+
+  describe('User Banning', () => {
+    let roomId: string;
+    let session: UserSession;
+
+    beforeEach(() => {
+      const room = roomService.createRoom(12);
+      roomId = room.id;
+      session = {
+        sessionId: 'test-session-1',
+        roomId,
+        nickname: 'TestUser',
+        color: '#FF0000',
+        joinedAt: Date.now()
+      };
+      roomService.addSession(roomId, session);
+    });
+
+    it('should ban user from room', () => {
+      const banned = roomService.banUser(roomId, session.sessionId);
+      expect(banned).toBe(true);
+      expect(roomService.isUserBanned(roomId, session.sessionId)).toBe(true);
+      expect(roomService.getParticipantCount(roomId)).toBe(0); // Should also remove session
+    });
+
+    it('should prevent banned user from rejoining', () => {
+      roomService.banUser(roomId, session.sessionId);
+      expect(roomService.isSessionBanned(roomId, session.sessionId)).toBe(true);
+      
+      // Try to add session again
+      const added = roomService.addSession(roomId, session);
+      expect(added).toBe(false);
+    });
+
+    it('should return false when banning from non-existent room', () => {
+      const banned = roomService.banUser('nonexistent', session.sessionId);
+      expect(banned).toBe(false);
+    });
+
+    it('should check if user is banned', () => {
+      expect(roomService.isUserBanned(roomId, session.sessionId)).toBe(false);
+      roomService.banUser(roomId, session.sessionId);
+      expect(roomService.isUserBanned(roomId, session.sessionId)).toBe(true);
+    });
+
+    it('should check if session is banned', () => {
+      expect(roomService.isSessionBanned(roomId, session.sessionId)).toBe(false);
+      roomService.banUser(roomId, session.sessionId);
+      expect(roomService.isSessionBanned(roomId, session.sessionId)).toBe(true);
+    });
+
+    it('should remove banned user from room when banning', () => {
+      expect(roomService.getParticipantCount(roomId)).toBe(1);
+      roomService.banUser(roomId, session.sessionId);
+      expect(roomService.getParticipantCount(roomId)).toBe(0);
+    });
+  });
+
+  describe('Ban Persistence', () => {
+    let roomId: string;
+    let session: UserSession;
+
+    beforeEach(() => {
+      const room = roomService.createRoom(12);
+      roomId = room.id;
+      session = {
+        sessionId: 'test-session-1',
+        roomId,
+        nickname: 'TestUser',
+        color: '#FF0000',
+        joinedAt: Date.now()
+      };
+    });
+
+    it('should persist ban after user leaves and tries to rejoin', () => {
+      // Add, ban, and remove user
+      roomService.addSession(roomId, session);
+      roomService.banUser(roomId, session.sessionId);
+      roomService.removeSession(roomId, session.sessionId);
+      
+      // Try to rejoin with same sessionId
+      const added = roomService.addSession(roomId, session);
+      expect(added).toBe(false);
+      expect(roomService.isSessionBanned(roomId, session.sessionId)).toBe(true);
+    });
+
+    it('should clear bans when room is deleted', () => {
+      roomService.addSession(roomId, session);
+      roomService.banUser(roomId, session.sessionId);
+      expect(roomService.isSessionBanned(roomId, session.sessionId)).toBe(true);
+      
+      roomService.deleteRoom(roomId);
+      // After deletion, room doesn't exist so ban check should return false
+      expect(roomService.getRoom(roomId)).toBeNull();
     });
   });
 });

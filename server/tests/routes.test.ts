@@ -23,6 +23,8 @@ describe('Room API Routes', () => {
       expect(response.body.roomId).toBeDefined();
       expect(response.body.url).toContain(response.body.roomId);
       expect(response.body.expiresAt).toBeGreaterThan(Date.now());
+      expect(response.body.ownerToken).toBeDefined();
+      expect(response.body.ownerToken.length).toBe(32);
     });
 
     it('should create a room with 24h TTL', async () => {
@@ -110,6 +112,33 @@ describe('Room API Routes', () => {
         .expect(200);
 
       expect(response.body.exists).toBe(false);
+    });
+  });
+
+  describe('Owner Token in Room Creation', () => {
+    it('should return ownerToken when creating room', async () => {
+      const response = await request(app)
+        .post('/api/rooms')
+        .send({ ttlHours: 12 })
+        .expect(201);
+
+      expect(response.body.ownerToken).toBeDefined();
+      expect(typeof response.body.ownerToken).toBe('string');
+      expect(response.body.ownerToken.length).toBe(32);
+    });
+
+    it('should return unique owner tokens for different rooms', async () => {
+      const response1 = await request(app)
+        .post('/api/rooms')
+        .send({ ttlHours: 12 })
+        .expect(201);
+
+      const response2 = await request(app)
+        .post('/api/rooms')
+        .send({ ttlHours: 24 })
+        .expect(201);
+
+      expect(response1.body.ownerToken).not.toBe(response2.body.ownerToken);
     });
   });
 });

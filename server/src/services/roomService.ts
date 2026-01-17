@@ -5,6 +5,7 @@ import { Room, TTLOption, Message, UserSession } from '../types';
 const rooms = new Map<string, Room>();
 const roomMessages = new Map<string, Message[]>();
 const roomSessions = new Map<string, Map<string, UserSession>>();
+const roomBans = new Map<string, Set<string>>(); // roomId -> Set of banned sessionIds
 
 // Constants
 const DEFAULT_CAPACITY = 300;
@@ -24,6 +25,19 @@ function generateRoomId(): string {
 }
 
 /**
+ * Generate a secure owner token
+ */
+function generateOwnerToken(): string {
+  // Generate a longer, secure token (32 characters)
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 32; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
  * Create a new room
  */
 export function createRoom(ttlHours: TTLOption): Room {
@@ -35,6 +49,7 @@ export function createRoom(ttlHours: TTLOption): Room {
   const id = generateRoomId();
   const now = Date.now();
   const expiresAt = now + ttlHours * 60 * 60 * 1000;
+  const ownerToken = generateOwnerToken();
 
   const room: Room = {
     id,
@@ -42,11 +57,13 @@ export function createRoom(ttlHours: TTLOption): Room {
     expiresAt,
     ttlHours,
     capacity: DEFAULT_CAPACITY,
+    ownerToken,
   };
 
   rooms.set(id, room);
   roomMessages.set(id, []);
   roomSessions.set(id, new Map());
+  roomBans.set(id, new Set());
 
   return room;
 }
@@ -103,11 +120,25 @@ export function isRoomFull(roomId: string): boolean {
 }
 
 /**
+ * Check if a session is banned from a room
+ */
+export function isSessionBanned(roomId: string, sessionId: string): boolean {
+  const bans = roomBans.get(roomId);
+  if (!bans) return false;
+  return bans.has(sessionId);
+}
+
+/**
  * Add a session to a room
  */
 export function addSession(roomId: string, session: UserSession): boolean {
   const room = getRoom(roomId);
   if (!room) return false;
+  
+  // Check if user is banned
+  if (isSessionBanned(roomId, session.sessionId)) {
+    return false;
+  }
   
   if (isRoomFull(roomId)) return false;
 
@@ -191,6 +222,59 @@ export function getRecentMessages(roomId: string, limit: number = MAX_RECENT_MES
 }
 
 /**
+ * Verify owner token for a room
+ */
+export function verifyOwnerToken(roomId: string, token: string): boolean {
+  const room = getRoom(roomId);
+  if (!room) return false;
+  return room.ownerToken === token;
+}
+
+/**
+ * Get owner token for a room (for testing/admin purposes)
+ */
+export function getOwnerToken(roomId: string): string | null {
+  const room = getRoom(roomId);
+  if (!room) return null;
+  return room.ownerToken;
+}
+
+/**
+ * Eject a user from a room (remove session immediately)
+ */
+export function ejectUser(roomId: string, targetSessionId: string): UserSession | null {
+  return removeSession(roomId, targetSessionId);
+}
+
+/**
+ * Ban a user from a room (prevent rejoining)
+ */
+export function banUser(roomId: string, targetSessionId: string): boolean {
+  const room = getRoom(roomId);
+  if (!room) return false;
+
+  let bans = roomBans.get(roomId);
+  if (!bans) {
+    bans = new Set();
+    roomBans.set(roomId, bans);
+  }
+
+  bans.add(targetSessionId);
+  
+  // Also remove the session if they're currently in the room
+  removeSession(roomId, targetSessionId);
+  
+  return true;
+}
+
+/**
+ * Check if a user is banned (by sessionId)
+ */
+export function isUserBanned(roomId: string, sessionId: string): boolean {
+  return isSessionBanned(roomId, sessionId);
+}
+
+/**
  * Delete a room and all its data
  */
 export function deleteRoom(roomId: string): boolean {
@@ -198,6 +282,7 @@ export function deleteRoom(roomId: string): boolean {
   rooms.delete(roomId);
   roomMessages.delete(roomId);
   roomSessions.delete(roomId);
+  roomBans.delete(roomId);
   return existed;
 }
 
@@ -233,6 +318,7 @@ export function clearAll(): void {
   rooms.clear();
   roomMessages.clear();
   roomSessions.clear();
+  roomBans.clear();
 }
 
 export {

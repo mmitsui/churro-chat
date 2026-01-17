@@ -10,7 +10,8 @@ import {
   SocketData,
   Message,
   UserSession,
-  JoinRoomResponse
+  JoinRoomResponse,
+  PublicRoom
 } from '../types';
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -53,10 +54,15 @@ export function setupSocketHandlers(
           joinedAt: Date.now()
         };
 
-        // Add session to room
+        // Add session to room (this will check if banned)
         const added = roomService.addSession(roomId, session);
         if (!added) {
-          callback({ error: 'Failed to join room' });
+          // Check if they were rejected due to being banned
+          if (roomService.isSessionBanned(roomId, sessionId)) {
+            callback({ error: 'You are banned from this room' });
+          } else {
+            callback({ error: 'Failed to join room' });
+          }
           return;
         }
 
@@ -75,9 +81,18 @@ export function setupSocketHandlers(
         // Notify other users
         socket.to(roomId).emit('user:joined', { nickname, color });
 
+        // Create public room object (without ownerToken)
+        const publicRoom: PublicRoom = {
+          id: room.id,
+          createdAt: room.createdAt,
+          expiresAt: room.expiresAt,
+          ttlHours: room.ttlHours,
+          capacity: room.capacity
+        };
+
         // Send response to joining user
         const response: JoinRoomResponse = {
-          room,
+          room: publicRoom,
           session,
           recentMessages
         };
@@ -177,6 +192,126 @@ export function setupSocketHandlers(
       } catch (error) {
         console.error('Error updating nickname:', error);
         callback({ success: false, error: 'Failed to update nickname' });
+      }
+    });
+
+    // Handle eject user (owner only)
+    socket.on('moderation:eject', async (data, callback) => {
+      try {
+        const { targetSessionId, ownerToken } = data;
+        const { roomId } = socket.data;
+
+        // Validate user is in a room
+        if (!roomId) {
+          callback({ success: false, error: 'Not in a room' });
+          return;
+        }
+
+        // Verify owner token
+        if (!roomService.verifyOwnerToken(roomId, ownerToken)) {
+          callback({ success: false, error: 'Unauthorized: Invalid owner token' });
+          return;
+        }
+
+        // Get target session to get their nickname
+        const targetSession = roomService.getSession(roomId, targetSessionId);
+        if (!targetSession) {
+          callback({ success: false, error: 'User not found in room' });
+          return;
+        }
+
+        // Cannot eject yourself
+        if (targetSessionId === socket.data.sessionId) {
+          callback({ success: false, error: 'Cannot eject yourself' });
+          return;
+        }
+
+        // Eject the user
+        const ejected = roomService.ejectUser(roomId, targetSessionId);
+        if (!ejected) {
+          callback({ success: false, error: 'Failed to eject user' });
+          return;
+        }
+
+        // Find and disconnect the target user's socket
+        const sockets = await io.in(roomId).fetchSockets();
+        for (const s of sockets) {
+          if (s.data.sessionId === targetSessionId) {
+            s.emit('user:ejected', { sessionId: targetSessionId, reason: 'Ejected by room owner' });
+            s.leave(roomId);
+            s.disconnect();
+            break;
+          }
+        }
+
+        // Notify other users
+        socket.to(roomId).emit('user:left', { nickname: targetSession.nickname });
+
+        callback({ success: true });
+        console.log(`User ${targetSession.nickname} (${targetSessionId}) ejected from room ${roomId}`);
+      } catch (error) {
+        console.error('Error ejecting user:', error);
+        callback({ success: false, error: 'Failed to eject user' });
+      }
+    });
+
+    // Handle ban user (owner only)
+    socket.on('moderation:ban', async (data, callback) => {
+      try {
+        const { targetSessionId, ownerToken } = data;
+        const { roomId } = socket.data;
+
+        // Validate user is in a room
+        if (!roomId) {
+          callback({ success: false, error: 'Not in a room' });
+          return;
+        }
+
+        // Verify owner token
+        if (!roomService.verifyOwnerToken(roomId, ownerToken)) {
+          callback({ success: false, error: 'Unauthorized: Invalid owner token' });
+          return;
+        }
+
+        // Get target session to get their nickname
+        const targetSession = roomService.getSession(roomId, targetSessionId);
+        if (!targetSession) {
+          callback({ success: false, error: 'User not found in room' });
+          return;
+        }
+
+        // Cannot ban yourself
+        if (targetSessionId === socket.data.sessionId) {
+          callback({ success: false, error: 'Cannot ban yourself' });
+          return;
+        }
+
+        // Ban the user
+        const banned = roomService.banUser(roomId, targetSessionId);
+        if (!banned) {
+          callback({ success: false, error: 'Failed to ban user' });
+          return;
+        }
+
+        // Find and disconnect the target user's socket
+        const sockets = await io.in(roomId).fetchSockets();
+        for (const s of sockets) {
+          if (s.data.sessionId === targetSessionId) {
+            s.emit('user:banned', { sessionId: targetSessionId, reason: 'Banned by room owner' });
+            s.leave(roomId);
+            s.disconnect();
+            break;
+          }
+        }
+
+        // Notify other users
+        socket.to(roomId).emit('user:left', { nickname: targetSession.nickname });
+
+        callback({ success: true });
+        console.log(`User ${targetSession.nickname} (${targetSessionId}) banned from room ${roomId}`);
+      } catch (error) {
+        console.error('Error banning user:', error);
+        callback({ success: false, error: 'Failed to ban user' });
       }
     });
 

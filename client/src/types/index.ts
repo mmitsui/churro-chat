@@ -1,7 +1,7 @@
 // Room TTL options in hours
 export type TTLOption = 12 | 24 | 72;
 
-// Room data structure
+// Room data structure (public, excludes ownerToken)
 export interface Room {
   id: string;
   createdAt: number;
@@ -35,6 +35,7 @@ export interface CreateRoomResponse {
   roomId: string;
   url: string;
   expiresAt: number;
+  ownerToken: string; // Secret token for owner moderation
 }
 
 export interface JoinRoomResponse {
@@ -54,6 +55,8 @@ export interface ServerToClientEvents {
   'user:joined': (user: { nickname: string; color: string }) => void;
   'user:left': (user: { nickname: string }) => void;
   'user:updated': (user: { sessionId: string; nickname: string }) => void;
+  'user:ejected': (data: { sessionId: string; reason?: string }) => void;
+  'user:banned': (data: { sessionId: string; reason?: string }) => void;
   'room:expired': () => void;
   'error': (error: { code: string; message: string }) => void;
 }
@@ -62,4 +65,6 @@ export interface ClientToServerEvents {
   'room:join': (data: { roomId: string }, callback: (response: JoinRoomResponse | { error: string }) => void) => void;
   'message:send': (data: { content: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'user:updateNickname': (data: { nickname: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'moderation:eject': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'moderation:ban': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
 }

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import * as roomService from '../services/roomService';
-import { CreateRoomRequest, CreateRoomResponse, RoomInfoResponse, TTLOption } from '../types';
+import { CreateRoomRequest, CreateRoomResponse, RoomInfoResponse, TTLOption, PublicRoom } from '../types';
 
 const router = Router();
 
@@ -28,7 +28,8 @@ router.post('/', (req: Request<{}, {}, CreateRoomRequest>, res: Response) => {
     const response: CreateRoomResponse = {
       roomId: room.id,
       url,
-      expiresAt: room.expiresAt
+      expiresAt: room.expiresAt,
+      ownerToken: room.ownerToken
     };
 
     res.status(201).json(response);
@@ -54,8 +55,17 @@ router.get('/:roomId', (req: Request<{ roomId: string }>, res: Response) => {
       });
     }
 
+    // Create public room object (without ownerToken)
+    const publicRoom: PublicRoom = {
+      id: room.id,
+      createdAt: room.createdAt,
+      expiresAt: room.expiresAt,
+      ttlHours: room.ttlHours,
+      capacity: room.capacity
+    };
+
     const response: RoomInfoResponse = {
-      room,
+      room: publicRoom,
       participantCount: roomService.getParticipantCount(roomId)
     };
 

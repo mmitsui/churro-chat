@@ -1,8 +1,18 @@
 // Room TTL options in hours
 export type TTLOption = 12 | 24 | 72;
 
-// Room data structure
+// Room data structure (internal, includes ownerToken)
 export interface Room {
+  id: string;
+  createdAt: number;
+  expiresAt: number;
+  ttlHours: TTLOption;
+  capacity: number;
+  ownerToken: string; // Secret token for owner moderation
+}
+
+// Public room data (sent to clients, excludes ownerToken)
+export interface PublicRoom {
   id: string;
   createdAt: number;
   expiresAt: number;
@@ -39,16 +49,17 @@ export interface CreateRoomResponse {
   roomId: string;
   url: string;
   expiresAt: number;
+  ownerToken: string; // Returned only on creation
 }
 
 export interface JoinRoomResponse {
-  room: Room;
+  room: PublicRoom;
   session: UserSession;
   recentMessages: Message[];
 }
 
 export interface RoomInfoResponse {
-  room: Room;
+  room: PublicRoom;
   participantCount: number;
 }
 
@@ -58,6 +69,8 @@ export interface ServerToClientEvents {
   'user:joined': (user: { nickname: string; color: string }) => void;
   'user:left': (user: { nickname: string }) => void;
   'user:updated': (user: { sessionId: string; nickname: string }) => void;
+  'user:ejected': (data: { sessionId: string; reason?: string }) => void;
+  'user:banned': (data: { sessionId: string; reason?: string }) => void;
   'room:expired': () => void;
   'error': (error: { code: string; message: string }) => void;
 }
@@ -66,6 +79,8 @@ export interface ClientToServerEvents {
   'room:join': (data: { roomId: string }, callback: (response: JoinRoomResponse | { error: string }) => void) => void;
   'message:send': (data: { content: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'user:updateNickname': (data: { nickname: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'moderation:eject': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'moderation:ban': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
 }
 
 export interface InterServerEvents {
@@ -77,4 +92,5 @@ export interface SocketData {
   roomId: string;
   nickname: string;
   color: string;
+  isOwner?: boolean; // Set if user authenticated with ownerToken
 }
