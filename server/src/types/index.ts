@@ -56,6 +56,7 @@ export interface JoinRoomResponse {
   room: PublicRoom;
   session: UserSession;
   recentMessages: Message[];
+  ownerSessionId: string | null; // SessionId of the room owner (if owner has joined)
 }
 
 export interface RoomInfoResponse {
@@ -69,6 +70,7 @@ export interface ServerToClientEvents {
   'user:joined': (user: { nickname: string; color: string }) => void;
   'user:left': (user: { nickname: string }) => void;
   'user:updated': (user: { sessionId: string; nickname: string }) => void;
+  'owner:identified': (data: { ownerSessionId: string }) => void;
   'user:ejected': (data: { sessionId: string; reason?: string }) => void;
   'user:banned': (data: { sessionId: string; reason?: string }) => void;
   'room:expired': () => void;
@@ -76,7 +78,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  'room:join': (data: { roomId: string }, callback: (response: JoinRoomResponse | { error: string }) => void) => void;
+  'room:join': (data: { roomId: string; ownerToken?: string }, callback: (response: JoinRoomResponse | { error: string }) => void) => void;
   'message:send': (data: { content: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'user:updateNickname': (data: { nickname: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'moderation:eject': (data: { targetSessionId: string; ownerToken: string }, callback: (response: { success: boolean; error?: string }) => void) => void;

@@ -21,6 +21,7 @@ export function ChatRoom() {
     messages,
     error,
     isOwner,
+    ownerSessionId,
     joinRoom,
     sendMessage,
     updateNickname,
@@ -146,6 +147,7 @@ export function ChatRoom() {
           currentSessionId={session.sessionId}
           isOwner={isOwner}
           ownerToken={roomId ? localStorage.getItem(`ownerToken:${roomId}`) : null}
+          ownerSessionId={ownerSessionId}
           onEject={ejectUser}
           onBan={banUser}
         />

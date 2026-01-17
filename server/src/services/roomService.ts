@@ -6,6 +6,7 @@ const rooms = new Map<string, Room>();
 const roomMessages = new Map<string, Message[]>();
 const roomSessions = new Map<string, Map<string, UserSession>>();
 const roomBans = new Map<string, Set<string>>(); // roomId -> Set of banned sessionIds
+const roomOwners = new Map<string, string>(); // roomId -> ownerSessionId
 
 // Constants
 const DEFAULT_CAPACITY = 300;
@@ -64,6 +65,7 @@ export function createRoom(ttlHours: TTLOption): Room {
   roomMessages.set(id, []);
   roomSessions.set(id, new Map());
   roomBans.set(id, new Set());
+  // Owner sessionId will be set when owner joins
 
   return room;
 }
@@ -240,6 +242,31 @@ export function getOwnerToken(roomId: string): string | null {
 }
 
 /**
+ * Set the owner sessionId for a room
+ */
+export function setOwnerSession(roomId: string, sessionId: string): boolean {
+  const room = getRoom(roomId);
+  if (!room) return false;
+  roomOwners.set(roomId, sessionId);
+  return true;
+}
+
+/**
+ * Get the owner sessionId for a room
+ */
+export function getOwnerSession(roomId: string): string | null {
+  return roomOwners.get(roomId) || null;
+}
+
+/**
+ * Check if a session is the owner of a room
+ */
+export function isOwnerSession(roomId: string, sessionId: string): boolean {
+  const ownerSessionId = roomOwners.get(roomId);
+  return ownerSessionId === sessionId;
+}
+
+/**
  * Eject a user from a room (remove session immediately)
  */
 export function ejectUser(roomId: string, targetSessionId: string): UserSession | null {
@@ -283,6 +310,7 @@ export function deleteRoom(roomId: string): boolean {
   roomMessages.delete(roomId);
   roomSessions.delete(roomId);
   roomBans.delete(roomId);
+  roomOwners.delete(roomId);
   return existed;
 }
 
@@ -319,6 +347,7 @@ export function clearAll(): void {
   roomMessages.clear();
   roomSessions.clear();
   roomBans.clear();
+  roomOwners.clear();
 }
 
 export {

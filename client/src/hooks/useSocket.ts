@@ -19,6 +19,7 @@ interface UseSocketReturn {
   messages: Message[];
   error: string | null;
   isOwner: boolean;
+  ownerSessionId: string | null;
   joinRoom: (roomId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<{ success: boolean; error?: string }>;
   updateNickname: (nickname: string) => Promise<{ success: boolean; error?: string }>;
@@ -35,6 +36,7 @@ export function useSocket(): UseSocketReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [ownerSessionId, setOwnerSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     // Create socket connection
@@ -89,6 +91,10 @@ export function useSocket(): UseSocketReturn {
       );
     });
 
+    socket.on('owner:identified', (data) => {
+      setOwnerSessionId(data.ownerSessionId);
+    });
+
     socket.on('user:ejected', (data) => {
       setSession((currentSession) => {
         if (data.sessionId === currentSession?.sessionId) {
@@ -132,11 +138,11 @@ export function useSocket(): UseSocketReturn {
         return;
       }
 
-      // Check if user is owner
+      // Check if user is owner and get ownerToken
       const ownerToken = localStorage.getItem(`ownerToken:${roomId}`);
       setIsOwner(!!ownerToken);
 
-      socket.emit('room:join', { roomId }, (response) => {
+      socket.emit('room:join', { roomId, ownerToken: ownerToken || undefined }, (response) => {
         if ('error' in response) {
           setError(response.error);
           reject(new Error(response.error));
@@ -145,6 +151,7 @@ export function useSocket(): UseSocketReturn {
           setRoom(joinResponse.room);
           setSession(joinResponse.session);
           setMessages(joinResponse.recentMessages);
+          setOwnerSessionId(joinResponse.ownerSessionId);
           setIsJoined(true);
           setError(null);
           resolve();
@@ -220,6 +227,7 @@ export function useSocket(): UseSocketReturn {
     messages,
     error,
     isOwner,
+    ownerSessionId,
     joinRoom,
     sendMessage,
     updateNickname,

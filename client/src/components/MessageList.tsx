@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Shield } from 'lucide-react';
 import { Message } from '../types';
 import { parseMessageContent, formatTimestamp } from '../utils/format';
 import { ModerationMenu } from './ModerationMenu';
@@ -8,6 +9,7 @@ interface MessageListProps {
   currentSessionId: string | null;
   isOwner: boolean;
   ownerToken: string | null;
+  ownerSessionId: string | null;
   onEject: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
   onBan: (sessionId: string, ownerToken: string) => Promise<{ success: boolean; error?: string }>;
 }
@@ -17,6 +19,7 @@ export function MessageList({
   currentSessionId, 
   isOwner, 
   ownerToken,
+  ownerSessionId,
   onEject,
   onBan 
 }: MessageListProps) {
@@ -59,6 +62,7 @@ export function MessageList({
     >
       {messages.map((message) => {
         const isOwnMessage = message.sessionId === currentSessionId;
+        const isOwnerMessage = ownerSessionId !== null && message.sessionId === ownerSessionId;
         
         return (
           <div 
@@ -72,6 +76,15 @@ export function MessageList({
               >
                 {message.nickname}
               </span>
+              {isOwnerMessage && (
+                <span 
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium"
+                  title="Room Owner"
+                >
+                  <Shield className="w-3 h-3" />
+                  Owner
+                </span>
+              )}
               <span className="text-xs text-gray-400">
                 {formatTimestamp(message.timestamp)}
               </span>

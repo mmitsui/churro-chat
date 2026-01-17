@@ -25,7 +25,7 @@ export function setupSocketHandlers(
     // Handle room join
     socket.on('room:join', async (data, callback) => {
       try {
-        const { roomId } = data;
+        const { roomId, ownerToken } = data;
 
         // Validate room exists
         const room = roomService.getRoom(roomId);
@@ -66,17 +66,35 @@ export function setupSocketHandlers(
           return;
         }
 
+        // Check if this is the owner joining
+        let isOwner = false;
+        if (ownerToken && roomService.verifyOwnerToken(roomId, ownerToken)) {
+          // Set this session as the owner (only if no owner is set yet)
+          const currentOwner = roomService.getOwnerSession(roomId);
+          if (!currentOwner) {
+            roomService.setOwnerSession(roomId, sessionId);
+            isOwner = true;
+            // Broadcast to all users that the owner has been identified
+            io.to(roomId).emit('owner:identified', { ownerSessionId: sessionId });
+            console.log(`Owner ${nickname} joined room ${roomId}`);
+          }
+        }
+
         // Store session data on socket
         socket.data.sessionId = sessionId;
         socket.data.roomId = roomId;
         socket.data.nickname = nickname;
         socket.data.color = color;
+        socket.data.isOwner = isOwner;
 
         // Join the socket room
         await socket.join(roomId);
 
         // Get recent messages
         const recentMessages = roomService.getRecentMessages(roomId);
+
+        // Get owner sessionId (if owner has joined)
+        const ownerSessionId = roomService.getOwnerSession(roomId);
 
         // Notify other users
         socket.to(roomId).emit('user:joined', { nickname, color });
@@ -94,7 +112,8 @@ export function setupSocketHandlers(
         const response: JoinRoomResponse = {
           room: publicRoom,
           session,
-          recentMessages
+          recentMessages,
+          ownerSessionId
         };
 
         callback(response);
